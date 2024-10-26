@@ -10,7 +10,7 @@
 # │   └── experiments.ipynb      # Notebooks de pruebas y prototipos
 # │
 # ├── src/                       # Código fuente
-# │   ├── pepe__init__.py
+# │   ├── __init__.py
 # │   ├── data/
 # │   │   ├── data_loader.py     # Carga y procesamiento de datos
 # │   │   └── data_transformer.py# Transformaciones y preprocesamiento
