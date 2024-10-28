@@ -1,4 +1,4 @@
-def convert_to_numeric_types(df, pd):
-    for column in df.columns:
-        if not pd.api.types.is_numeric_dtype(df[column]):
-            df[column] = pd.to_numeric(df[column], errors='coerce')
+def save_model(np, model, filepath):
+    np.savez(filepath, w_hidden1=model.w_hidden1, b_hidden1=model.b_hidden1,
+             w_hidden2=model.w_hidden2, b_hidden2=model.b_hidden2,
+             w_output=model.w_output, b_output=model.b_output)

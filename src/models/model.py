@@ -1,137 +1,103 @@
 import numpy as np
-import pandas as pd
-from sklearn.model_selection import train_test_split
 
-all_data = pd.read_csv("../../data/raw/spotify_most_streamed_songs.csv")
+class StreamsNeuralNetwork:
+    def __init__(self, input_size, hidden_layer_size, hidden_layer_2_size, output_size):
+        # Construir una red neuronal con pesos y sesgos iniciados aleatoriamente
 
-categorical_cols_all_data = all_data.select_dtypes(include=['object']).columns
-numerical_cols_all_data = all_data.select_dtypes(include=['int64', 'float64']).columns
+        self.w_hidden = np.random.rand(input_size, hidden_layer_size)
+        self.b_hidden = np.random.rand(1, hidden_layer_size)
 
-#conversion de columnas a tipo numerico
-for col in categorical_cols_all_data:
-    all_data[col] = pd.to_numeric(all_data[col], errors='coerce')
+        self.w_hidden2 = np.random.rand(hidden_layer_size, hidden_layer_2_size)
+        self.b_hidden2 = np.random.rand(1, hidden_layer_2_size)
 
-#Se eliminan todas las columnas que contengan datos NaN
-deleted_nan_data = all_data.dropna(axis=1, how='all')
+        self.w_output = np.random.rand(hidden_layer_2_size, output_size)
+        self.b_output = np.random.rand(1, output_size)
 
-#Estos fueron a mano porque contenian al menos un dato numerico.
-cleaned_data = deleted_nan_data.drop(['track_name', 'instrumentalness_%'], axis=1)
+    def relu(self, x):
+        return np.maximum(x, 0)
 
-numerical_cols_cleaned_data = cleaned_data.select_dtypes(include=['int64', 'float64']).columns
+    def logistic(self, x):
+        return 1 / (1 + np.exp(-np.clip(x, -500, 500)))
 
-# Vamos a remover outliers
-def remove_outliers(df, columns):
-    for column in columns:
-        Q1 = df[column].quantile(0.25)
-        Q3 = df[column].quantile(0.75)
-        IQR = Q3 - Q1
-        lower_bound = Q1 - 1.5 * IQR
-        upper_bound = Q3 + 1.5 * IQR
-        df = df[(df[column] >= lower_bound) & (df[column] <= upper_bound)]
-    return df
+    def forward_prop(self, X):
+        Z1 = self.w_hidden.T @ X.T + self.b_hidden.T
+        A1 = self.relu(Z1)
 
-cleaned_data = remove_outliers(cleaned_data, numerical_cols_cleaned_data)
+        Z2 = self.w_hidden2.T @ A1 + self.b_hidden2.T
+        A2 = self.relu(Z2)
 
-# Cambiar los valores de la columna 'streams' a 0 o 1 según si pasa el umbral de 100 millones
-cleaned_data['streams'] = cleaned_data['streams'].apply(lambda x: 1 if x > 100_000_000 else 0)
-cleaned_data = cleaned_data[[col for col in cleaned_data.columns if col != 'streams'] + ['streams']]
+        Z3 = self.w_output.T @ A2 + self.b_output.T
+        A3 = self.logistic(Z3)
 
+        return Z1, A1, Z2, A2, Z3, A3
 
-relevant_columns = cleaned_data.iloc[:, 5:9]
+    def forward_prop2(self, X):
+        # Capa 1
+        Z1 = np.dot(X, self.w_hidden) + self.b_hidden
+        A1 = self.relu(Z1)
 
-hidden_layer_size = 32
-hidden_layer_2_size = 16
-input_size = 4
-output_size = 1
+        # Capa 2
+        Z2 = np.dot(A1, self.w_hidden2) + self.b_hidden2
+        A2 = self.relu(Z2)
 
-all_inputs = relevant_columns.values
+        # Capa de salida
+        Z3 = np.dot(A2, self.w_output) + self.b_output
+        A3 = self.logistic(Z3)
 
-all_outputs = cleaned_data.iloc[:, -1].values
+        return Z1, A1, Z2, A2, Z3, A3
 
-# Dividir en un conjunto de entrenamiento y uno de prueba
-X_train, X_test, Y_train, Y_test = train_test_split(all_inputs, all_outputs,
-    test_size=1/3)
+    def backward_prop2(self, X, Y, Z1, A1, Z2, A2, A3, learning_rate=0.01):
+        m = X.shape[0]  # Número de muestras
 
-n = X_train.shape[0] # número de registros de entrenamiento
+        # Error en la capa de salida
+        dZ3 = A3 - Y.reshape(-1, 1)
+        dw_output = (1 / m) * np.dot(A2.T, dZ3)
+        db_output = (1 / m) * np.sum(dZ3, axis=0, keepdims=True)
 
-# Construir una red neuronal con pesos y sesgos iniciados aleatoriamente
-w_hidden = np.random.rand(input_size, hidden_layer_size)
-b_hidden = np.random.rand(1, hidden_layer_size)
+        # Error en la segunda capa oculta
+        dA2 = np.dot(dZ3, self.w_output.T)
+        dZ2 = dA2 * (Z2 > 0)  # Derivada de ReLU
+        dw_hidden_2 = (1 / m) * np.dot(A1.T, dZ2)
+        db_hidden_2 = (1 / m) * np.sum(dZ2, axis=0, keepdims=True)
 
-w_hidden2 = np.random.rand(hidden_layer_size, hidden_layer_2_size)
-b_hidden2 = np.random.rand(1, hidden_layer_2_size)
+        # Error en la primera capa oculta
+        dA1 = np.dot(dZ2, self.w_hidden2.T)
+        dZ1 = dA1 * (Z1 > 0)  # Derivada de ReLU
+        dw_hidden = (1 / m) * np.dot(X.T, dZ1)
+        db_hidden = (1 / m) * np.sum(dZ1, axis=0, keepdims=True)
 
-w_output = np.random.rand(hidden_layer_2_size, output_size)
-b_output = np.random.rand(1, output_size)
+        # Actualizar pesos y biases
+        self.w_output -= learning_rate * dw_output
+        self.b_output -= learning_rate * db_output
+        self.w_hidden2 -= learning_rate * dw_hidden_2
+        self.b_hidden2 -= learning_rate * db_hidden_2
+        self.w_hidden -= learning_rate * dw_hidden
+        self.b_hidden -= learning_rate * db_hidden
 
-# Funciones de activacion
-relu = lambda x: np.maximum(x, 0)
-logistic = lambda x: 1 / (1 + np.exp(-np.clip(x, -500, 500)))
+    def backward_prop(self, X, Y, Z1, A1, Z2, A2, A3, learning_rate=0.01):
+        m = X.shape[0]  # Número de muestras
 
-# Funcion que corre la red neuronal con los datos de entrada para predecir la salida
-def forward_prop(X):
-    Z1 = w_hidden.T @ X.T + b_hidden.T
-    A1 = relu(Z1)
+        # Calcular el error en la capa de salida
+        dZ3 = A3 - Y.reshape(1, -1)
+        dw_output = (1 / m) * (A2 @ dZ3.T)
+        db_output = (1 / m) * np.sum(dZ3, axis=1, keepdims=True)
 
-    Z2 = w_hidden2.T @ A1 + b_hidden2.T
-    A2 = relu(Z2)
+        # Propagar el error hacia la capa oculta
+        dA2 = self.w_output @ dZ3
+        dZ2 = dA2 * (Z2 > 0)
+        dw_hidden_2 = (1 / m) * (A1 @ dZ2.T)
+        db_hidden_2 = (1 / m) * np.sum(dZ2, axis=1, keepdims=True)
 
-    Z3 = w_output.T @ A2 + b_output.T
-    A3 = logistic(Z3)
-    return Z1, A1, Z2, A2, Z3, A3
+        # Propagar el error hacia la capa oculta
+        dA1 = self.w_hidden2 @ dZ2
+        dZ1 = dA1 * (Z1 > 0)
+        dw_hidden = (1 / m) * (X.T @ dZ1.T)
+        db_hidden = (1 / m) * np.sum(dZ1, axis=1, keepdims=True)
 
-
-def backward_prop(X, Y, Z1, A1, A2, A3, learning_rate=0.01):
-    global w_hidden, b_hidden, w_hidden2, b_hidden2, w_output, b_output
-
-    m = X.shape[0]  # Número de muestras
-
-    # Calcular el error en la capa de salida
-    dZ3 = A3 - Y.reshape(1, -1)
-
-    dw_output = (1 / m) * (A2 @ dZ3.T)
-
-    db_output = (1 / m) * np.sum(dZ3, axis=1, keepdims=True)
-
-    # Propagar el error hacia la capa oculta
-    dA2 = w_output @ dZ3
-    dZ2 = dA2 * (Z2 > 0)
-    dw_hidden_2 = (1 / m) * (A1 @ dZ2.T)
-    db_hidden_2 = (1 / m) * np.sum(dZ2, axis=1, keepdims=True)
-
-    # Propagar el error hacia la capa oculta
-    dA1 = w_hidden2 @ dZ2
-    dZ1 = dA1 * (Z1 > 0)
-    dw_hidden = (1 / m) * (X.T @ dZ1.T)
-    db_hidden = (1 / m) * np.sum(dZ1, axis=1, keepdims=True)
-
-    # Asegurar que las formas coinciden para la actualización
-    w_output -= learning_rate * dw_output
-    b_output -= learning_rate * db_output
-    w_hidden2 -= learning_rate * dw_hidden_2
-    b_hidden2 -= learning_rate * db_hidden_2.T
-    w_hidden -= learning_rate * dw_hidden
-    b_hidden -= learning_rate * db_hidden.T
-
-
-# Bucle de entrenamiento
-epochs = 1000
-l = 0.055
-for epoch in range(epochs):
-    # Forward propagation
-    Z1, A1, Z2, A2, Z3, A3 = forward_prop(X_train)
-
-    # Backward propagation
-    backward_prop(X_train, Y_train, Z1, A1, A2, A3, learning_rate=l)
-
-    if epoch % 100 == 0:
-        train_predictions = (A3 >= 0.5).astype(int)
-        train_accuracy = np.mean(train_predictions.flatten() == Y_train)
-        print(f"Epoch {epoch}, Training Accuracy: {train_accuracy:.4f}")
-
-# Calculo de precisión
-test_predictions = forward_prop(X_test)[-1] # me interesa solo la capa de salida, A3
-test_predictions = (test_predictions >= 0.5).astype(int).flatten()
-test_comparisons = np.equal(test_predictions, Y_test)
-accuracy = np.mean(test_comparisons)
-print("ACCURACY: ", accuracy)
+        # Asegurar que las formas coinciden para la actualización
+        self.w_output -= learning_rate * dw_output
+        self.b_output -= learning_rate * db_output
+        self.w_hidden2 -= learning_rate * dw_hidden_2
+        self.b_hidden2 -= learning_rate * db_hidden_2.T
+        self.w_hidden -= learning_rate * dw_hidden
+        self.b_hidden -= learning_rate * db_hidden.T
