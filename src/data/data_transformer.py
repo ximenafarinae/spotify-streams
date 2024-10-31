@@ -15,7 +15,5 @@ def remove_outliers(df, columns):
 
 def normalize_input(df):
     df_stats = df.describe().T
-    print(df_stats)
     df_norm = (df - df_stats['mean']) / df_stats['std']
-    print(df_norm)
     return df_norm

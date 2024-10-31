@@ -15,22 +15,31 @@ input_size = 4
 output_size = 1
 
 data = load_data(DATA_PATH)
+
+# Convierto todos los datos a valores numericos
 data = convert_columns_values_to_numeric(pd, data, data.select_dtypes(include='object').columns)
 
+# Elimino todas las columnas que contengas datos NaN
 data = data.dropna(axis=1, how='all')
 
 #Estos fueron a mano porque contenian al menos un dato numerico.
 data = data.drop(['track_name', 'instrumentalness_%'], axis=1)
 numeric_columns = data.select_dtypes(include=['int64', 'float64']).columns
+
+# Elimino los valores atipicos
 data = remove_outliers(data, numeric_columns)
 
 # Cambiar los valores de la columna 'streams' a 0 o 1 según si pasa el umbral de 100 millones
 data['streams'] = data['streams'].apply(lambda x: 1 if x > 100_000_000 else 0)
-#data = normalize_input(data)
 
+# Muevo la columna streams al final para que sea mas comodo seleccionar las columnas relevantes para el entrenamiento
 data = data[[col for col in data.columns if col != 'streams'] + ['streams']]
 
+#Tomo las columnas relevantes (segun matriz de correlacion)
 relevant_columns = data.iloc[:, 5:9]
+
+# Normalizo las columnas de entrada.
+relevant_columns = normalize_input(relevant_columns)
 
 all_inputs = relevant_columns.values
 
@@ -40,7 +49,7 @@ all_outputs = data.iloc[:, -1].values
 X_train, X_test, Y_train, Y_test = train_test_split(all_inputs, all_outputs,
     test_size=1/3)
 
-n = X_train.shape[0] # número de registros de entrenamiento
+n = X_train.shape[0]
 
 model = StreamsNeuralNetwork(INPUT_SIZE, HIDDEN_LAYER1_SIZE, HIDDEN_LAYER2_SIZE, OUTPUT_SIZE)
 
