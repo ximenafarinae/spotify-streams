@@ -2,12 +2,11 @@ import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
 from src.data.data_loader import load_data
-from src.data.data_transformer import convert_columns_values_to_numeric, normalize_input, \
-    remove_outliers_std
+from src.data.data_transformer import convert_columns_values_to_numeric, normalize_input, remove_outliers_percentile
 from src.models.model import StreamsNeuralNetwork
 from src.config import *
 from src.models.trainer import train
-from src.utils.visualization import plot_accuracy_and_loss
+from src.utils.visualization import plot_accuracy_and_loss, data_distribution
 
 data = load_data(DATA_PATH)
 
@@ -19,10 +18,6 @@ data = data.dropna(axis=1, how='all')
 
 # Estos fueron a mano porque contenian al menos un dato numerico.
 data = data.drop(['track_name', 'instrumentalness_%'], axis=1)
-numeric_columns = data.select_dtypes(include=['int64', 'float64']).columns
-
-# Elimino los valores atípicos usando la técnica de la desviación estandar
-data = remove_outliers_std(data, numeric_columns)
 
 # Cambio los valores de la columna 'streams' a 0 o 1 según si pasa el umbral de 100 millones
 data['streams'] = data['streams'].apply(lambda x: 1 if x > 100_000_000 else 0)
@@ -33,6 +28,21 @@ relevant_columns = data[["in_spotify_playlists", "in_apple_playlists", "in_deeze
 # Normalizo las columnas de entrada.
 relevant_columns = normalize_input(relevant_columns)
 
+"""# Grafico la distribucion de los datos
+data_distribution(relevant_columns, "in_spotify_playlists")
+data_distribution(relevant_columns, "in_apple_playlists")
+data_distribution(relevant_columns, "in_deezer_playlists")"""
+
+# Elimino los valores atípicos usando la técnica de percentile ya que mis datos tienen una fuerte asimetria hacia la derecha
+data = remove_outliers_percentile(data, relevant_columns)
+
+relevant_columns = data[["in_spotify_playlists", "in_apple_playlists", "in_deezer_playlists"]]
+
+"""# Grafico la distribucion de los datos
+data_distribution(relevant_columns, "in_spotify_playlists")
+data_distribution(relevant_columns, "in_apple_playlists")
+data_distribution(relevant_columns, "in_deezer_playlists")"""
+
 # Datos de entrada
 all_inputs = relevant_columns.values
 
@@ -42,6 +52,9 @@ all_outputs = data[["streams"]].values
 # Dividir en un conjunto de entrenamiento y uno de prueba
 X_train, X_test, Y_train, Y_test = train_test_split(all_inputs, all_outputs,
     test_size=1/3)
+print("Cantidad de datos de entrenamiento: ", len(X_train))
+print("Cantidad de datos de prueba: ", len(X_test))
+
 # Se inicializa el modelo
 model = StreamsNeuralNetwork(INPUT_SIZE, HIDDEN_LAYER1_SIZE, OUTPUT_SIZE)
 
