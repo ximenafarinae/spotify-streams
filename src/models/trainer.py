@@ -1,32 +1,30 @@
-def train(np, model, X, Y, epochs, l):
+from src.models.evaluator import evaluate
+
+
+def train(np, model, X_train, Y_train, X_val, Y_val, epochs, l, l2, dropout):
+    train_accuracies, val_accuracies = [], []
+    train_losses, val_losses = [], []
+
     for epoch in range(epochs):
         # Forward propagation
-        Z1, A1, Z2, A2, Z3, A3 = model.forward_prop(X)
+        Z1, A1, Z2, A2 = model.forward_prop(X_train, dropout, training=True)
+
+        train_loss = np.mean((A2 - Y_train.reshape(-1, 1)) ** 2)
+        train_accuracy = np.mean((A2 >= 0.5) == Y_train.reshape(-1, 1))
+
         # Backward propagation
-        model.backward_prop(X, Y, Z1, A1, Z2, A2, A3, learning_rate=l)
+        model.backward_prop(X_train, Y_train, Z1, A1, Z2, A2, l, l2)
 
-        if epoch % 100 == 0:
-            train_predictions = (A3 >= 0.5).astype(int)
-            train_accuracy = np.mean(train_predictions.flatten() == Y)
-            print(f"Epoch {epoch}, Training Accuracy: {train_accuracy:.4f}")
+        val_loss, val_accuracy = evaluate(np, model, X_val, Y_val, dropout)
 
-def train2(np, model, X_train, Y_train, epochs, learning_rate):
-    train_accuracies = []
-    val_accuracies = []
-
-    for epoch in range(epochs):
-        # Propagación hacia adelante y cálculo de precisión en entrenamiento
-        model.forward_prop(X_train)
-        train_accuracy = np.mean((model.A3 >= 0.5) == Y_train.reshape(-1, 1))
+        train_losses.append(train_loss)
         train_accuracies.append(train_accuracy)
+        val_losses.append(val_loss)
+        val_accuracies.append(val_accuracy)
 
-        # Verificar si los pesos se están actualizando
         if epoch % 100 == 0:
-            print(f"Epoch {epoch}, Training Accuracy: {train_accuracy:.4f}")
-            print("Peso de w_output:", model.w_output[:5])  # Mostrar algunos pesos de w_output para verificar cambios
+            print(f"Epoch {epoch}, Training Loss: {train_loss:.4f}, Training Accuracy: {train_accuracy:.4f}")
+            print(f"Epoch {epoch}, Validation Loss: {val_loss:.4f}, Validation Accuracy: {val_accuracy:.4f}")
+            print("\n")
 
-        # Retropropagación y actualización de pesos
-        Z1, A1, Z2, A2, Z3, A3 = model.forward_prop(X_train)
-        model.backward_prop(X_train, Y_train, Z1, A1, Z2, A2, A3, learning_rate)
-
-    return train_accuracies, val_accuracies
+    return train_accuracies, val_accuracies, train_losses, val_losses

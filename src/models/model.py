@@ -1,16 +1,15 @@
 import numpy as np
 
+np.random.seed(42)
+
 class StreamsNeuralNetwork:
-    def __init__(self, input_size, hidden_layer_size, hidden_layer_2_size, output_size):
+    def __init__(self, input_size, hidden_layer_size, output_size):
 
         # Construir una red neuronal con pesos y sesgos iniciados aleatoriamente
-        self.w_hidden = np.random.rand(input_size, hidden_layer_size)
+        self.w_hidden = np.random.rand(input_size, hidden_layer_size) * np.sqrt(2.0 / input_size)
         self.b_hidden = np.random.rand(1, hidden_layer_size)
 
-        self.w_hidden2 = np.random.rand(hidden_layer_size, hidden_layer_2_size)
-        self.b_hidden2 = np.random.rand(1, hidden_layer_2_size)
-
-        self.w_output = np.random.rand(hidden_layer_2_size, output_size)
+        self.w_output = np.random.rand(hidden_layer_size, output_size) * np.sqrt(2.0 / input_size)
         self.b_output = np.random.rand(1, output_size)
 
     def relu(self, x):
@@ -19,41 +18,33 @@ class StreamsNeuralNetwork:
     def logistic(self, x):
         return 1 / (1 + np.exp(-np.clip(x, -500, 500)))
 
-    def forward_prop(self, X):
+    def forward_prop(self, X, dropout_rate, training):
         Z1 = X @ self.w_hidden + self.b_hidden
         A1 = self.relu(Z1)
+        if training and dropout_rate > 0:
+            dropout_mask = (np.random.rand(*A1.shape) > dropout_rate) / (1 - dropout_rate)  # Normalización
+            A1 *= dropout_mask
 
-        Z2 = A1 @ self.w_hidden2 + self.b_hidden2
-        A2 = self.relu(Z2)
+        Z2 = A1 @ self.w_output + self.b_output
+        A2 = self.logistic(Z2)
 
-        Z3 = A2 @ self.w_output + self.b_output
-        A3 = self.logistic(Z3)
+        return Z1, A1, Z2, A2
 
-        return Z1, A1, Z2, A2, Z3, A3
-
-    def backward_prop(self, X, Y, Z1, A1, Z2, A2, A3, learning_rate=0.01):
+    def backward_prop(self, X, Y, Z1, A1, Z2, A2, learning_rate, lambda_l2):
         m = X.shape[0]  # Número de muestras
 
         # Calcular el error en la capa de salida
-        dZ3 = A3 - Y.reshape(-1, 1)
-        dw_output = (1 / m) * (A2.T @ dZ3)
-        db_output = (1 / m) * np.sum(dZ3, axis=0, keepdims=True)
-
-        # Propagar el error hacia la segunda capa oculta
-        dA2 = dZ3 @ self.w_output.T
-        dZ2 = dA2 * (Z2 > 0)
-        dw_hidden_2 = (1 / m) * (A1.T @ dZ2)
-        db_hidden_2 = (1 / m) * np.sum(dZ2, axis=0, keepdims=True)
+        dZ2 = A2 - Y.reshape(-1, 1)
+        dw_output = (1 / m) * (A1.T @ dZ2) + (lambda_l2 / m) * self.w_output
+        db_output = (1 / m) * np.sum(dZ2, axis=0, keepdims=True)
 
         # Propagar el error hacia la primera capa oculta
-        dA1 = dZ2 @ self.w_hidden2.T
+        dA1 = dZ2 @ self.w_output.T
         dZ1 = dA1 * (Z1 > 0)
-        dw_hidden = (1 / m) * (X.T @ dZ1)
+        dw_hidden = (1 / m) * (X.T @ dZ1) + (lambda_l2 / m) * self.w_hidden
         db_hidden = (1 / m) * np.sum(dZ1, axis=0, keepdims=True)
 
         self.w_output -= learning_rate * dw_output
         self.b_output -= learning_rate * db_output
-        self.w_hidden2 -= learning_rate * dw_hidden_2
-        self.b_hidden2 -= learning_rate * db_hidden_2
         self.w_hidden -= learning_rate * dw_hidden
         self.b_hidden -= learning_rate * db_hidden
