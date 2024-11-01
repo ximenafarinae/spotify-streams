@@ -17,7 +17,7 @@ Entrenamiento
 - Tasa de Aprendizaje: learning_rate=0.01
 - Regularización L2: lambda_l2=0.01
 - Dropout: dropout=0.2
-- Número de Épocas: 5000 
+- Número de Épocas: 3000 
 
 ## Como usar la red
 
