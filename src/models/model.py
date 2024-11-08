@@ -31,18 +31,17 @@ class StreamsNeuralNetwork:
         return Z1, A1, Z2, A2
 
     def backward_prop(self, X, Y, Z1, A1, Z2, A2, learning_rate, lambda_l2):
-        m = X.shape[0]  # Número de muestras
 
         # Calcular el error en la capa de salida
         dZ2 = A2 - Y.reshape(-1, 1)
-        dw_output = (1 / m) * (A1.T @ dZ2) + (lambda_l2 / m) * self.w_output
-        db_output = (1 / m) * np.sum(dZ2, axis=0, keepdims=True)
+        dw_output = A1.T @ dZ2 * self.w_output
+        db_output = np.sum(dZ2, axis=0, keepdims=True)
 
         # Propagar el error hacia la primera capa oculta
         dA1 = dZ2 @ self.w_output.T
         dZ1 = dA1 * (Z1 > 0)
-        dw_hidden = (1 / m) * (X.T @ dZ1) + (lambda_l2 / m) * self.w_hidden
-        db_hidden = (1 / m) * np.sum(dZ1, axis=0, keepdims=True)
+        dw_hidden = X.T @ dZ1 * self.w_hidden
+        db_hidden = np.sum(dZ1, axis=0, keepdims=True)
 
         self.w_output -= learning_rate * dw_output
         self.b_output -= learning_rate * db_output
