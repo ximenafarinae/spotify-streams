@@ -44,3 +44,17 @@ def data_distribution(df, column_name):
     plt.xlabel("Valor")
     plt.ylabel("Densidad")
     plt.show()
+
+
+def data_box_plot(df, columns):
+    plt.figure(figsize=(15, 100))
+
+    for i, column in enumerate(columns, 1):
+        plt.subplot(len(columns), 1, i)
+        df.boxplot([column])
+        plt.title(f"Boxplot of {column}")
+        plt.ylabel("Original Values")
+        plt.xticks([])
+
+plt.tight_layout()
+plt.show()
